@@ -12,42 +12,25 @@ const SEMITONES_ABOVE_C4 = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24];
 const C4 = 261.63;
 const FREQUENCIES = SEMITONES_ABOVE_C4.map((s) => C4 * 2 ** (s / 12));
 
-// Each string is triggered by one key from each physical row.
-const KEY_TO_STRING = new Map<string, number>([
-  ["KeyQ", 0],
-  ["KeyA", 0],
-  ["KeyZ", 0],
-  ["KeyW", 1],
-  ["KeyS", 1],
-  ["KeyX", 1],
-  ["KeyE", 2],
-  ["KeyD", 2],
-  ["KeyC", 2],
-  ["KeyR", 3],
-  ["KeyF", 3],
-  ["KeyV", 3],
-  ["KeyT", 4],
-  ["KeyG", 4],
-  ["KeyB", 4],
-  ["KeyY", 5],
-  ["KeyH", 5],
-  ["KeyN", 5],
-  ["KeyU", 6],
-  ["KeyJ", 6],
-  ["KeyM", 6],
-  ["KeyI", 7],
-  ["KeyK", 7],
-  ["Comma", 7],
-  ["KeyO", 8],
-  ["KeyL", 8],
-  ["Period", 8],
-  ["KeyP", 9],
-  ["Semicolon", 9],
-  ["Slash", 9],
-  ["BracketLeft", 10],
-  ["Quote", 10],
-  ["ShiftRight", 10],
-]);
+// Each string is triggered by one key from each physical row, top to
+// bottom, aligned in the same keyboard column.
+const KEY_COLUMNS: string[][] = [
+  ["Digit1", "KeyQ", "KeyA", "KeyZ"],
+  ["Digit2", "KeyW", "KeyS", "KeyX"],
+  ["Digit3", "KeyE", "KeyD", "KeyC"],
+  ["Digit4", "KeyR", "KeyF", "KeyV"],
+  ["Digit5", "KeyT", "KeyG", "KeyB"],
+  ["Digit6", "KeyY", "KeyH", "KeyN"],
+  ["Digit7", "KeyU", "KeyJ", "KeyM"],
+  ["Digit8", "KeyI", "KeyK", "Comma"],
+  ["Digit9", "KeyO", "KeyL", "Period"],
+  ["Digit0", "KeyP", "Semicolon", "Slash"],
+  ["Minus", "BracketLeft", "Quote", "ShiftRight"],
+];
+
+const KEY_TO_STRING = new Map<string, number>(
+  KEY_COLUMNS.flatMap((codes, index) => codes.map((code) => [code, index] as const)),
+);
 
 const harpEl = document.getElementById("harp");
 

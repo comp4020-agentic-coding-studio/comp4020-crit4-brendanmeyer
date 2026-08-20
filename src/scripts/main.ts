@@ -63,12 +63,15 @@ if (harpEl) {
     maxZoom = Math.max(INITIAL_ZOOM, fitZoom);
   }
 
-  function layout() {
+  function worldXToScreenX(worldX: number): number {
     const centerScreenX = harp.clientWidth / 2;
     const worldCenter = WORLD_WIDTH / 2;
+    return centerScreenX + (worldX - worldCenter) * zoom;
+  }
+
+  function layout() {
     for (let i = 0; i < STRING_COUNT; i++) {
-      const worldX = i * SPACING;
-      strings[i].style.left = `${centerScreenX + (worldX - worldCenter) * zoom}px`;
+      strings[i].style.left = `${worldXToScreenX(i * SPACING)}px`;
     }
   }
 
@@ -93,7 +96,6 @@ if (harpEl) {
   function revealHarp() {
     if (hasRevealed) return;
     hasRevealed = true;
-    hint?.classList.add("gone");
     recalcZoomBounds();
     const from = zoom;
     const to = fitZoom;
@@ -132,12 +134,15 @@ if (harpEl) {
     return audioCtx;
   }
 
-  function pluck(index: number, velocity: number) {
-    revealHarp();
-
+  function flashString(index: number) {
     const el = strings[index];
     el.classList.add("played", "flash");
     window.setTimeout(() => el.classList.remove("flash"), 150);
+  }
+
+  function pluck(index: number, velocity: number) {
+    revealHarp();
+    flashString(index);
 
     const ctx = ensureAudio();
     const now = ctx.currentTime;
@@ -168,18 +173,123 @@ if (harpEl) {
     });
   }
 
+  // An unattended intro demo: a dot appears over a real, playable string, plays
+  // it, then swipes across a few strings like a hand strumming, before fading
+  // away for good. It never makes sound (the browser blocks audio before a
+  // real gesture anyway) and yields the moment any real input arrives.
+  const CENTER_INDEX = (STRING_COUNT - 1) / 2;
+  let demoActive = true;
+
+  function visibleIndexRadius(zoomLevel: number): number {
+    return Math.max(1, Math.floor(harp.clientWidth / zoomLevel / 2 / SPACING));
+  }
+
+  function pickDemoStartIndex(): number {
+    const radius = Math.max(1, visibleIndexRadius(INITIAL_ZOOM) - 1);
+    const lo = Math.max(0, Math.round(CENTER_INDEX - radius));
+    const hi = Math.min(STRING_COUNT - 1, Math.round(CENTER_INDEX + radius));
+    return lo + Math.floor(Math.random() * (hi - lo + 1));
+  }
+
+  function pickSwipeTarget(startIndex: number): number {
+    const length = 3 + Math.floor(Math.random() * 4);
+    return Math.random() < 0.5
+      ? Math.min(STRING_COUNT - 1, startIndex + length)
+      : Math.max(0, startIndex - length);
+  }
+
+  function easeInOutCubic(t: number): number {
+    return t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2;
+  }
+
+  function positionHint(worldX: number, yWobblePercent = 0, xJitterPx = 0) {
+    if (!hint) return;
+    hint.style.left = `${worldXToScreenX(worldX) + xJitterPx}px`;
+    hint.style.top = `calc(50% + ${yWobblePercent}%)`;
+  }
+
+  function demoPluck(index: number) {
+    revealHarp();
+    flashString(index);
+  }
+
+  function hideHintNow() {
+    hint?.classList.add("gone");
+  }
+
+  function cancelDemo() {
+    if (!demoActive) return;
+    demoActive = false;
+    hideHintNow();
+  }
+
+  function runSwipe(startIndex: number) {
+    if (!demoActive) return;
+    const endIndex = pickSwipeTarget(startIndex);
+    const fromWorld = startIndex * SPACING;
+    const toWorld = endIndex * SPACING;
+    const duration =
+      (700 + Math.abs(endIndex - startIndex) * 150) * (0.85 + Math.random() * 0.3);
+    const start = performance.now();
+    let lastIndex = startIndex;
+
+    function step(now: number) {
+      if (!demoActive) return;
+      const t = Math.min(1, (now - start) / duration);
+      const eased = easeInOutCubic(t);
+      const worldX = fromWorld + (toWorld - fromWorld) * eased;
+      const jitterX = Math.sin(now * 0.012 + startIndex) * 3;
+      const wobbleY = Math.sin(t * Math.PI * 3 + startIndex) * 4;
+      positionHint(worldX, wobbleY, jitterX);
+
+      const index = Math.min(STRING_COUNT - 1, Math.max(0, Math.round(worldX / SPACING)));
+      if (index !== lastIndex) {
+        demoPluck(index);
+        lastIndex = index;
+      }
+
+      if (t < 1) {
+        requestAnimationFrame(step);
+      } else {
+        demoActive = false;
+        hideHintNow();
+      }
+    }
+    requestAnimationFrame(step);
+  }
+
+  const demoStartIndex = pickDemoStartIndex();
+  positionHint(demoStartIndex * SPACING);
+
+  // The dot sits still until the user's own first pluck reveals the harp;
+  // only then does it demonstrate a strum, once the zoom-out has settled.
+  function scheduleDemoSwipe() {
+    if (!demoActive) return;
+    window.setTimeout(() => {
+      if (!demoActive) return;
+      runSwipe(demoStartIndex);
+    }, 1100);
+  }
+
   const drags = new Map<number, { lastIndex: number; lastX: number; lastT: number }>();
 
   harp.addEventListener("pointerdown", (e) => {
+    const isFirstPluck = !hasRevealed;
     harp.setPointerCapture(e.pointerId);
     const index = screenXToStringIndex(e.clientX);
     drags.set(e.pointerId, { lastIndex: index, lastX: e.clientX, lastT: e.timeStamp });
     pluck(index, 0.22);
+    if (isFirstPluck) {
+      scheduleDemoSwipe();
+    } else {
+      cancelDemo();
+    }
   });
 
   harp.addEventListener("pointermove", (e) => {
     const drag = drags.get(e.pointerId);
     if (!drag) return;
+    cancelDemo();
     const index = screenXToStringIndex(e.clientX);
     const dt = Math.max(1, e.timeStamp - drag.lastT);
     const speed = Math.abs(e.clientX - drag.lastX) / dt;
@@ -202,6 +312,12 @@ if (harpEl) {
     const index = KEY_TO_STRING.get(e.code);
     if (index === undefined) return;
     e.preventDefault();
+    const isFirstPluck = !hasRevealed;
     pluck(index, 0.22);
+    if (isFirstPluck) {
+      scheduleDemoSwipe();
+    } else {
+      cancelDemo();
+    }
   });
 }

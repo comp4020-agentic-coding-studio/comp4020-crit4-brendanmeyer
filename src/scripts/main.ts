@@ -125,6 +125,12 @@ if (harpEl) {
     requestAnimationFrame(step);
   }
 
+  // A press-and-hold strum with no movement otherwise reads as a long-press:
+  // the browser/OS's context-menu gesture fires mid-gesture, stealing the
+  // pointer sequence (no pointerup/pointercancel follows) and leaving input
+  // stuck until the menu is dismissed.
+  harp.addEventListener("contextmenu", (e) => e.preventDefault());
+
   harp.addEventListener(
     "wheel",
     (e) => {

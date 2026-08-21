@@ -277,7 +277,6 @@ if (harpEl) {
   harp.addEventListener("pointermove", (e) => {
     const drag = drags.get(e.pointerId);
     if (!drag) return;
-    cancelDemo();
     const index = screenXToStringIndex(e.clientX);
     const dt = Math.max(1, e.timeStamp - drag.lastT);
     const speed = Math.abs(e.clientX - drag.lastX) / dt;
@@ -285,6 +284,7 @@ if (harpEl) {
     drag.lastT = e.timeStamp;
     if (index !== drag.lastIndex) {
       drag.lastIndex = index;
+      cancelDemo();
       pluck(index, 0.08 + speed * 0.6);
     }
   });

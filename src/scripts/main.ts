@@ -177,18 +177,13 @@ if (harpEl) {
   // it, then swipes across a few strings like a hand strumming, before fading
   // away for good. It never makes sound (the browser blocks audio before a
   // real gesture anyway) and yields the moment any real input arrives.
-  const CENTER_INDEX = (STRING_COUNT - 1) / 2;
   let demoActive = true;
 
-  function visibleIndexRadius(zoomLevel: number): number {
-    return Math.max(1, Math.floor(harp.clientWidth / zoomLevel / 2 / SPACING));
-  }
-
-  function pickDemoStartIndex(): number {
-    const radius = Math.max(1, visibleIndexRadius(INITIAL_ZOOM) - 1);
-    const lo = Math.max(0, Math.round(CENTER_INDEX - radius));
-    const hi = Math.min(STRING_COUNT - 1, Math.round(CENTER_INDEX + radius));
-    return lo + Math.floor(Math.random() * (hi - lo + 1));
+  // A screen-space pick (not a world/string-index one) so the dot always
+  // lands somewhere actually on screen, at any zoom or viewport width.
+  function pickDemoStartScreenX(): number {
+    const margin = harp.clientWidth * 0.15;
+    return margin + Math.random() * (harp.clientWidth - margin * 2);
   }
 
   function pickSwipeTarget(startIndex: number): number {
@@ -258,17 +253,10 @@ if (harpEl) {
     requestAnimationFrame(step);
   }
 
-  const demoStartIndex = pickDemoStartIndex();
-  positionHint(demoStartIndex * SPACING);
-
-  // The dot sits still until the user's own first pluck reveals the harp;
-  // only then does it demonstrate a strum, once the zoom-out has settled.
-  function scheduleDemoSwipe() {
-    if (!demoActive) return;
-    window.setTimeout(() => {
-      if (!demoActive) return;
-      runSwipe(demoStartIndex);
-    }, 1100);
+  const demoStartScreenX = pickDemoStartScreenX();
+  const demoStartIndex = screenXToStringIndex(demoStartScreenX);
+  if (hint) {
+    hint.style.left = `${demoStartScreenX}px`;
   }
 
   const drags = new Map<number, { lastIndex: number; lastX: number; lastT: number }>();
@@ -280,7 +268,7 @@ if (harpEl) {
     drags.set(e.pointerId, { lastIndex: index, lastX: e.clientX, lastT: e.timeStamp });
     pluck(index, 0.22);
     if (isFirstPluck) {
-      scheduleDemoSwipe();
+      runSwipe(demoStartIndex);
     } else {
       cancelDemo();
     }
@@ -315,7 +303,7 @@ if (harpEl) {
     const isFirstPluck = !hasRevealed;
     pluck(index, 0.22);
     if (isFirstPluck) {
-      scheduleDemoSwipe();
+      runSwipe(demoStartIndex);
     } else {
       cancelDemo();
     }

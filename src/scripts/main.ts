@@ -75,13 +75,17 @@ if (harpEl) {
     }
   }
 
-  function screenXToStringIndex(screenX: number): number {
+  function screenXToStringIndexAtZoom(screenX: number, zoomLevel: number): number {
     const rect = harp.getBoundingClientRect();
     const centerScreenX = rect.width / 2;
     const worldCenter = WORLD_WIDTH / 2;
-    const worldX = (screenX - rect.left - centerScreenX) / zoom + worldCenter;
+    const worldX = (screenX - rect.left - centerScreenX) / zoomLevel + worldCenter;
     const index = Math.round(worldX / SPACING);
     return Math.min(STRING_COUNT - 1, Math.max(0, index));
+  }
+
+  function screenXToStringIndex(screenX: number): number {
+    return screenXToStringIndexAtZoom(screenX, zoom);
   }
 
   recalcZoomBounds();
@@ -218,9 +222,12 @@ if (harpEl) {
     hideHintNow();
   }
 
-  function runSwipe(startIndex: number) {
+  function runSwipe(startIndex: number, targetIndex?: number) {
     if (!demoActive) return;
-    const endIndex = pickSwipeTarget(startIndex);
+    const endIndex =
+      targetIndex === undefined
+        ? pickSwipeTarget(startIndex)
+        : Math.min(STRING_COUNT - 1, Math.max(0, targetIndex));
     const fromWorld = startIndex * SPACING;
     const toWorld = endIndex * SPACING;
     const duration =
@@ -254,7 +261,9 @@ if (harpEl) {
   }
 
   const demoStartScreenX = pickDemoStartScreenX();
-  const demoStartIndex = screenXToStringIndex(demoStartScreenX);
+  // Read against the revealed (fit) layout, not the tight opening zoom, so
+  // the dot's implied note matches where it visually sits once revealed.
+  const demoStartIndex = screenXToStringIndexAtZoom(demoStartScreenX, fitZoom);
   if (hint) {
     hint.style.left = `${demoStartScreenX}px`;
   }
@@ -264,11 +273,17 @@ if (harpEl) {
   harp.addEventListener("pointerdown", (e) => {
     const isFirstPluck = !hasRevealed;
     harp.setPointerCapture(e.pointerId);
-    const index = screenXToStringIndex(e.clientX);
+    // Before the reveal, the camera is zoomed in tight, so mapping the click
+    // through the live (pre-reveal) zoom would collapse almost any click to
+    // the strings nearest centre. Read the first click against the revealed
+    // (fit) layout instead, so it plays the note the user actually pointed at.
+    const index = isFirstPluck
+      ? screenXToStringIndexAtZoom(e.clientX, fitZoom)
+      : screenXToStringIndex(e.clientX);
     drags.set(e.pointerId, { lastIndex: index, lastX: e.clientX, lastT: e.timeStamp });
     pluck(index, 0.22);
     if (isFirstPluck) {
-      runSwipe(demoStartIndex);
+      runSwipe(demoStartIndex, index === demoStartIndex ? undefined : index);
     } else {
       cancelDemo();
     }
@@ -303,7 +318,7 @@ if (harpEl) {
     const isFirstPluck = !hasRevealed;
     pluck(index, 0.22);
     if (isFirstPluck) {
-      runSwipe(demoStartIndex);
+      runSwipe(demoStartIndex, index === demoStartIndex ? undefined : index);
     } else {
       cancelDemo();
     }

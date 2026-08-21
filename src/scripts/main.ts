@@ -75,12 +75,15 @@ if (harpEl) {
     }
   }
 
-  function screenXToStringIndexAtZoom(screenX: number, zoomLevel: number): number {
+  function screenXToWorldX(screenX: number, zoomLevel: number): number {
     const rect = harp.getBoundingClientRect();
     const centerScreenX = rect.width / 2;
     const worldCenter = WORLD_WIDTH / 2;
-    const worldX = (screenX - rect.left - centerScreenX) / zoomLevel + worldCenter;
-    const index = Math.round(worldX / SPACING);
+    return (screenX - rect.left - centerScreenX) / zoomLevel + worldCenter;
+  }
+
+  function screenXToStringIndexAtZoom(screenX: number, zoomLevel: number): number {
+    const index = Math.round(screenXToWorldX(screenX, zoomLevel) / SPACING);
     return Math.min(STRING_COUNT - 1, Math.max(0, index));
   }
 
@@ -228,7 +231,10 @@ if (harpEl) {
       targetIndex === undefined
         ? pickSwipeTarget(startIndex)
         : Math.min(STRING_COUNT - 1, Math.max(0, targetIndex));
-    const fromWorld = startIndex * SPACING;
+    // Anchor to the dot's actual current screen spot rather than
+    // startIndex's world position: the camera is still mid-zoom-out here, so
+    // re-deriving from the index would jump the dot to a mismatched spot.
+    const fromWorld = screenXToWorldX(demoStartScreenX, zoom);
     const toWorld = endIndex * SPACING;
     const duration =
       (700 + Math.abs(endIndex - startIndex) * 150) * (0.85 + Math.random() * 0.3);

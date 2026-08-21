@@ -95,8 +95,15 @@ if (harpEl) {
   layout();
 
   window.addEventListener("resize", () => {
+    // Rescale by the change in fit zoom (not just clamp the old value into
+    // the new bounds): clamping alone leaves zoom at its old absolute level,
+    // which is still "in range" but frames only a couple of strings when the
+    // viewport has shrunk a lot (e.g. desktop width down to a phone).
+    const oldFitZoom = fitZoom;
     recalcZoomBounds();
-    zoom = hasRevealed ? Math.min(maxZoom, Math.max(minZoom, zoom)) : INITIAL_ZOOM;
+    zoom = hasRevealed
+      ? Math.min(maxZoom, Math.max(minZoom, zoom * (fitZoom / oldFitZoom)))
+      : INITIAL_ZOOM;
     layout();
   });
 
